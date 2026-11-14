@@ -2,7 +2,7 @@
 import engineSource from '../../core/sklearn_engine.py?raw';
 import type { DemoModelKind, InferencePayload, PyodideProgress } from '../types/model';
 
-const PYODIDE_INDEX_URL = 'https://cdn.jsdelivr.net/pyodide/v0.27.2/full/';
+const PYODIDE_INDEX_URL = 'https://cdn.jsdelivr.net/pyodide/v314.0.8/full/';
 const PYODIDE_MJS_URL = `${PYODIDE_INDEX_URL}pyodide.mjs`;
 
 interface PyodideInstance {
@@ -60,11 +60,26 @@ async function ensureInitialized(): Promise<PyodideInstance> {
 
       postProgress({
         stage: 'packages',
-        message: 'Chargement des paquets Python (numpy, scipy, scikit-learn, pandas, joblib)…',
-        percent: 55,
+        message: 'Chargement des paquets Python (numpy, scipy, scikit-learn, pandas, joblib, skops)…',
+        percent: 50,
       });
 
       await instance.loadPackage(['micropip', 'numpy', 'scipy', 'scikit-learn', 'pandas', 'joblib']);
+
+      postProgress({
+        stage: 'packages',
+        message: 'Installation de skops via micropip…',
+        percent: 72,
+      });
+
+      try {
+        await instance.runPythonAsync(`
+import micropip
+await micropip.install("skops")
+`);
+      } catch {
+        // Fallback silencieux si PyPI est inaccessible : joblib/pickle restent disponibles
+      }
 
       postProgress({
         stage: 'engine',

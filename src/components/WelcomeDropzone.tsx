@@ -22,7 +22,7 @@ interface WelcomeDropzoneProps {
   onCloseModal?: () => void;
 }
 
-const ACCEPTED_EXTENSIONS = ['.joblib', '.pkl', '.pickle', '.gz', '.bz2', '.xz', '.lzma'];
+const ACCEPTED_EXTENSIONS = ['.skops', '.joblib', '.pkl', '.pickle', '.gz', '.bz2', '.xz', '.lzma'];
 
 const DEMO_CARDS: Array<{
   kind: DemoModelKind;
@@ -74,7 +74,8 @@ export const WelcomeDropzone: React.FC<WelcomeDropzoneProps> = ({
 
   const handleFileSelection = (file: File | undefined) => {
     if (!file) return;
-    if (trustedSession) {
+    const isSkops = file.name.toLowerCase().endsWith('.skops');
+    if (isSkops || trustedSession) {
       onLoadFile(file);
     } else {
       setPendingFile(file);
@@ -139,20 +140,23 @@ export const WelcomeDropzone: React.FC<WelcomeDropzoneProps> = ({
         </div>
       )}
 
-      {/* Pickle security confirmation banner */}
+      {/* Pickle security + compatibility confirmation banner */}
       {pendingFile && (
         <div className="rounded-xl border border-amber-500/40 bg-amber-500/10 p-4 space-y-3">
           <div className="flex items-start gap-3">
             <ShieldAlert className="w-5 h-5 text-amber-400 shrink-0 mt-0.5" />
             <div className="space-y-1 text-xs">
               <div className="font-semibold text-sm text-amber-300">
-                Confirmation de sécurité Pickle / Joblib
+                Format de recours Pickle / Joblib — Sécurité & Compatibilité
               </div>
               <p className="text-[var(--text-secondary)] leading-relaxed">
                 Les fichiers <code className="font-mono">.joblib</code> et{' '}
-                <code className="font-mono">.pkl</code> peuvent exécuter du code Python lors de la
-                désérialisation. Tout s’exécute localement dans le sandbox WebAssembly de votre
-                navigateur sans aucun envoi sur Internet. Voulez-vous charger{' '}
+                <code className="font-mono">.pkl</code> peuvent exécuter du code Python à
+                l’ouverture et souffrir d’<strong>incompatibilités de version</strong> entre
+                l’environnement d’entraînement et Pyodide (ex. attributs supprimés ou structures
+                Cython). Privilégiez le format <code className="font-mono text-emerald-400">.skops</code>{' '}
+                dès que possible. Tout s’exécute localement dans le sandbox WebAssembly sans envoi
+                sur Internet. Charger{' '}
                 <span className="font-mono font-semibold text-[var(--text-primary)]">
                   {pendingFile.name}
                 </span>{' '}
@@ -219,14 +223,24 @@ export const WelcomeDropzone: React.FC<WelcomeDropzoneProps> = ({
           <div className="w-12 h-12 rounded-2xl bg-sky-500/15 border border-sky-500/30 flex items-center justify-center text-sky-400">
             <UploadCloud className="w-6 h-6" />
           </div>
-          <div className="space-y-1">
+          <div className="space-y-1.5">
             <p className="text-sm font-semibold">
               {isLoading
                 ? 'Chargement et introspection du modèle en cours…'
                 : 'Glissez-déposez un modèle scikit-learn ici, ou cliquez pour parcourir'}
             </p>
-            <p className="text-xs text-[var(--text-muted)] font-mono">
-              Formats supportés : .joblib, .pkl, .pickle, .gz, .bz2, .xz, .lzma
+            <div className="flex flex-wrap items-center justify-center gap-2 text-xs">
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 font-mono text-[11px] font-semibold">
+                Recommandé : .skops
+              </span>
+              <span className="text-[var(--text-muted)] font-mono text-[11px]">
+                Recours : .joblib, .pkl, .pickle, .gz, .bz2, .xz, .lzma
+              </span>
+            </div>
+            <p className="text-[11px] text-amber-400/90 max-w-xl mx-auto">
+              Note : les fichiers pickle/joblib peuvent rencontrer des erreurs de compatibilité
+              selon la version de scikit-learn utilisée à l’entraînement (une normalisation
+              automatique est tentée au chargement).
             </p>
           </div>
         </div>

@@ -9,6 +9,7 @@ natively inside Pyodide (WebAssembly in the browser) as well as standard desktop
 from __future__ import annotations
 
 import csv
+import inspect
 import io
 import json
 import math
@@ -57,6 +58,7 @@ CATEGORICAL_ENCODERS = frozenset(
         "FeatureHasher",
     }
 )
+SKOPS_EXTENSIONS = frozenset({".skops"})
 COMPRESSED_JOBLIB_EXTENSIONS = frozenset({".joblib", ".jbl", ".z", ".gz", ".bz2", ".xz", ".lzma"})
 
 # In-memory cache of loaded models keyed by model_id so browser inference calls do not unpickle repeatedly.
@@ -129,28 +131,199 @@ def _pickle_load(path: str) -> Any:
         return pickle.load(handle)
 
 
+def _skops_load(path: str, collected_warnings: list[str]) -> Any:
+    import skops.io as sio
+
+    untrusted = sio.get_untrusted_types(file=path)
+    if untrusted:
+        preview = ", ".join(str(t) for t in untrusted[:8])
+        suffix = f" (+{len(untrusted) - 8} autres)" if len(untrusted) > 8 else ""
+        collected_warnings.append(
+            f"skops: types non-standard approuvés dans le sandbox WASM : {preview}{suffix}"
+        )
+    return sio.load(path, trusted=untrusted)
+
+
+def _iter_all_estimators(model: Any, seen: set[int] | None = None):
+    """Yield every nested estimator/transformer inside pipelines, ensembles, and meta-estimators."""
+    if seen is None:
+        seen = set()
+    if model is None or isinstance(model, (str, bytes, int, float, bool)):
+        return
+    obj_id = id(model)
+    if obj_id in seen:
+        return
+    seen.add(obj_id)
+    yield model
+
+    for _, step in steps_of(model):
+        yield from _iter_all_estimators(step, seen)
+
+    for attr_name in ("transformers_", "transformers", "transformer_list"):
+        items = getattr(model, attr_name, None)
+        if isinstance(items, (list, tuple)):
+            for item in items:
+                if isinstance(item, (list, tuple)) and len(item) > 1:
+                    yield from _iter_all_estimators(item[1], seen)
+
+    for attr_name in ("estimators_", "estimators"):
+        items = getattr(model, attr_name, None)
+        if isinstance(items, (list, tuple)):
+            for item in items:
+                est = item[1] if isinstance(item, (list, tuple)) and len(item) > 1 else item
+                yield from _iter_all_estimators(est, seen)
+
+    for attr_name in CHILD_ATTRIBUTES:
+        child = getattr(model, attr_name, None)
+        if child is not None:
+            yield from _iter_all_estimators(child, seen)
+
+    calibrated = getattr(model, "calibrated_classifiers_", None)
+    if isinstance(calibrated, (list, tuple)):
+        for cal in calibrated:
+            for sub_attr in ("estimator", "base_estimator"):
+                sub = getattr(cal, sub_attr, None)
+                if sub is not None:
+                    yield from _iter_all_estimators(sub, seen)
+
+
+def _harmonize_loaded_model(model: Any, collected_warnings: list[str]) -> Any:
+    """Layer A: Best-effort compatibility patching for cross-version scikit-learn models."""
+    patched: list[str] = []
+
+    for est in _iter_all_estimators(model):
+        cls = type(est)
+        cls_name = cls.__name__
+        if not hasattr(est, "__dict__"):
+            continue
+
+        # 1. Generic __init__ default injection for missing hyperparameters
+        try:
+            sig = inspect.signature(cls.__init__)
+            for param_name, param in sig.parameters.items():
+                if param_name == "self":
+                    continue
+                if param.kind in (inspect.Parameter.VAR_POSITIONAL, inspect.Parameter.VAR_KEYWORD):
+                    continue
+                if param.default is inspect.Parameter.empty:
+                    continue
+                if not hasattr(est, param_name):
+                    try:
+                        setattr(est, param_name, param.default)
+                        patched.append(f"{cls_name}.{param_name}")
+                    except Exception:  # noqa: BLE001
+                        pass
+        except (ValueError, TypeError):
+            pass
+
+        # 2. Targeted cross-version attribute migrations
+        if cls_name == "LogisticRegression" and not hasattr(est, "multi_class"):
+            try:
+                est.multi_class = "auto"
+                patched.append("LogisticRegression.multi_class='auto'")
+            except Exception:  # noqa: BLE001
+                pass
+
+        if cls_name == "OneHotEncoder":
+            if hasattr(est, "sparse_output") and not hasattr(est, "sparse"):
+                try:
+                    est.sparse = est.sparse_output
+                    patched.append("OneHotEncoder.sparse")
+                except Exception:  # noqa: BLE001
+                    pass
+            elif hasattr(est, "sparse") and not hasattr(est, "sparse_output"):
+                try:
+                    est.sparse_output = est.sparse
+                    patched.append("OneHotEncoder.sparse_output")
+                except Exception:  # noqa: BLE001
+                    pass
+
+        if cls_name == "SimpleImputer" and not hasattr(est, "_fill_dtype"):
+            stats = getattr(est, "statistics_", None)
+            if stats is not None and hasattr(stats, "dtype"):
+                try:
+                    est._fill_dtype = stats.dtype
+                    patched.append("SimpleImputer._fill_dtype")
+                except Exception:  # noqa: BLE001
+                    pass
+
+        if any(
+            k in cls_name
+            for k in ("Tree", "Forest", "GradientBoosting", "ExtraTrees", "HistGradientBoosting")
+        ) and not hasattr(est, "monotonic_cst"):
+            try:
+                est.monotonic_cst = None
+                patched.append(f"{cls_name}.monotonic_cst=None")
+            except Exception:  # noqa: BLE001
+                pass
+
+    if patched:
+        unique_patched = list(dict.fromkeys(patched))
+        preview = ", ".join(unique_patched[:8])
+        suffix = f" (+{len(unique_patched) - 8} autres)" if len(unique_patched) > 8 else ""
+        collected_warnings.append(
+            f"Compatibilité auto (Couche A) : attribut(s) complété(s) : {preview}{suffix}"
+        )
+
+    return model
+
+
+def _is_cython_binary_mismatch(error: Exception) -> bool:
+    msg = str(error).lower()
+    return (
+        "incompatible dtype" in msg
+        or "node array from the pickle" in msg
+        or "buffer dtype mismatch" in msg
+    )
+
+
 def _run_loaders(path: str, extension: str, collected_warnings: list[str]) -> Any:
+    try:
+        import skops.io  # noqa: F401
+        has_skops = True
+    except ImportError:
+        has_skops = False
+
+    if extension in SKOPS_EXTENSIONS and not has_skops:
+        raise EngineError(
+            "missing_module",
+            "Ce modèle est au format recommandé .skops et nécessite le package Python 'skops'.",
+            missing_package="skops",
+        )
+
     try:
         import joblib
     except ImportError:
         joblib = None
 
     loaders: list[tuple[str, Any]] = []
-    if joblib is not None:
-        loaders.append(("joblib", joblib.load))
-    loaders.append(("pickle", _pickle_load))
-    if extension not in COMPRESSED_JOBLIB_EXTENSIONS and len(loaders) > 1:
-        loaders.reverse()
+    if extension in SKOPS_EXTENSIONS:
+        loaders.append(("skops", lambda p: _skops_load(p, collected_warnings)))
+    else:
+        if has_skops:
+            loaders.append(("skops", lambda p: _skops_load(p, collected_warnings)))
+        if extension in COMPRESSED_JOBLIB_EXTENSIONS:
+            if joblib is not None:
+                loaders.append(("joblib", joblib.load))
+            loaders.append(("pickle", _pickle_load))
+        else:
+            loaders.append(("pickle", _pickle_load))
+            if joblib is not None:
+                loaders.append(("joblib", joblib.load))
 
     last_error: Exception | None = None
     with warnings.catch_warnings(record=True) as caught:
         warnings.simplefilter("always")
-        for _, loader in loaders:
+        for loader_name, loader in loaders:
             try:
                 model = loader(path)
                 for item in caught:
                     collected_warnings.append(f"{item.category.__name__}: {item.message}")
-                return model
+                if loader_name in ("pickle", "joblib"):
+                    collected_warnings.append(
+                        f"Chargé via {loader_name} (recours) : des incompatibilités de version scikit-learn peuvent survenir. Privilégiez le format .skops."
+                    )
+                return _harmonize_loaded_model(model, collected_warnings)
             except ModuleNotFoundError as error:
                 missing_name = (error.name or "").split(".")[0] or None
                 raise EngineError(
@@ -161,9 +334,15 @@ def _run_loaders(path: str, extension: str, collected_warnings: list[str]) -> An
             except Exception as error:  # noqa: BLE001
                 last_error = error
 
+    if last_error is not None and _is_cython_binary_mismatch(last_error):
+        raise EngineError(
+            "load_failed",
+            f"Incompatibilité binaire Cython entre la version scikit-learn d'entraînement et ce runtime ({type(last_error).__name__}: {last_error}). Exportez le modèle avec skops ou ré-exportez-le.",
+        )
+
     raise EngineError(
         "load_failed",
-        f"The file could not be loaded as a joblib or pickle model: {type(last_error).__name__}: {last_error}",
+        f"The file could not be loaded as a skops, joblib or pickle model: {type(last_error).__name__}: {last_error}",
     )
 
 
@@ -249,7 +428,7 @@ def installed_versions() -> dict[str, str | None]:
     versions: dict[str, str | None] = {}
     try:
         from importlib import metadata
-        for name in ("numpy", "scipy", "pandas", "scikit-learn", "joblib"):
+        for name in ("skops", "numpy", "scipy", "pandas", "scikit-learn", "joblib"):
             try:
                 versions[name] = metadata.version(name)
             except Exception:  # noqa: BLE001
@@ -1547,8 +1726,18 @@ def predict(model: Any, request: dict[str, Any], collected_warnings: list[str]) 
     outputs: list[dict[str, Any]] = []
     with warnings.catch_warnings(record=True) as caught:
         warnings.simplefilter("always")
-        for method in methods:
-            outputs.append(output_of(method, getattr(model, method)(data)))
+        try:
+            for method in methods:
+                outputs.append(output_of(method, getattr(model, method)(data)))
+        except (AttributeError, ValueError) as error:
+            if isinstance(error, AttributeError) or _is_cython_binary_mismatch(error):
+                trained_ver = sklearn_version_of(model) or "inconnue"
+                runtime_ver = installed_versions().get("scikit-learn") or "inconnue"
+                raise EngineError(
+                    "predict_failed",
+                    f"Erreur de compatibilité scikit-learn à l'inférence (entraîné: v{trained_ver}, runtime: v{runtime_ver}) : {type(error).__name__}: {error}. Privilégiez le format .skops.",
+                ) from error
+            raise
         for item in caught:
             collected_warnings.append(f"{item.category.__name__}: {item.message}")
     elapsed_ms = max(0, int(round((time.perf_counter() - started) * 1000)))
@@ -1666,9 +1855,7 @@ def list_loaded_models() -> list[dict[str, Any]]:
 # -------------------------------------------------------- built-in demo models
 
 def create_demo_model_bytes(kind: str = "iris_pipeline") -> tuple[str, bytes]:
-    """Synthesize a small real scikit-learn model serialized with joblib for instant browser demos."""
-    import joblib
-
+    """Synthesize a small real scikit-learn model serialized with skops (fallback joblib) for instant browser demos."""
     kind_normalized = (kind or "iris_pipeline").strip().lower()
     if kind_normalized == "iris_pipeline":
         from sklearn.datasets import load_iris
@@ -1684,7 +1871,7 @@ def create_demo_model_bytes(kind: str = "iris_pipeline") -> tuple[str, bytes]:
             ]
         )
         model.fit(iris.data, iris.target_names[iris.target])
-        filename = "demo_iris_pipeline.joblib"
+        base_name = "demo_iris_pipeline"
 
     elif kind_normalized == "titanic_columntransformer":
         import pandas as pd
@@ -1712,7 +1899,7 @@ def create_demo_model_bytes(kind: str = "iris_pipeline") -> tuple[str, bytes]:
         )
         model = Pipeline([("preprocess", pre), ("forest", RandomForestClassifier(n_estimators=12, max_depth=4, random_state=42))])
         model.fit(df, y)
-        filename = "demo_mixed_columntransformer.joblib"
+        base_name = "demo_mixed_columntransformer"
 
     elif kind_normalized == "text_tfidf_classifier":
         from sklearn.feature_extraction.text import TfidfVectorizer
@@ -1732,14 +1919,22 @@ def create_demo_model_bytes(kind: str = "iris_pipeline") -> tuple[str, bytes]:
         labels = ["positive", "positive", "positive", "positive", "negative", "negative", "negative", "negative"]
         model = Pipeline([("tfidf", TfidfVectorizer()), ("nb", MultinomialNB())])
         model.fit(docs, labels)
-        filename = "demo_text_tfidf_classifier.joblib"
+        base_name = "demo_text_tfidf_classifier"
 
     else:
         raise EngineError("invalid_input", f"Unknown demo model kind '{kind}'.")
 
     buf = io.BytesIO()
-    joblib.dump(model, buf)
-    return filename, buf.getvalue()
+    try:
+        import skops.io as sio
+
+        sio.dump(model, buf)
+        return f"{base_name}.skops", buf.getvalue()
+    except ImportError:
+        import joblib
+
+        joblib.dump(model, buf)
+        return f"{base_name}.joblib", buf.getvalue()
 
 
 def load_demo_model(kind: str = "iris_pipeline", model_id: str | None = None) -> dict[str, Any]:
