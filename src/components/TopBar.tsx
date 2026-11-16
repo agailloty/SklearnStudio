@@ -76,7 +76,7 @@ export const TopBar: React.FC<TopBarProps> = ({
             }`}
           />
           <span className="text-[var(--text-secondary)]">
-            {isReady ? '100% Local • Pyodide WASM' : pyodideProgress.message}
+            {isReady ? 'Environnement prêt' : pyodideProgress.message}
           </span>
           {!isReady && !isError && pyodideProgress.percent > 0 && (
             <span className="font-mono text-sky-400">{pyodideProgress.percent}%</span>

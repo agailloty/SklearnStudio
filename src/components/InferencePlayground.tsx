@@ -1,11 +1,11 @@
 import React, { useEffect, useRef, useState } from 'react';
 import {
   AlertCircle,
+  Dices,
   FileSpreadsheet,
   ListChecks,
   Play,
   RotateCcw,
-  Sparkles,
   Terminal,
   Upload,
 } from 'lucide-react';
@@ -20,7 +20,7 @@ interface InferencePlaygroundProps {
   model: InspectedModel;
   isRunning: boolean;
   errorMessage: string | null;
-  externalPayload?: { mode: InferenceInputMode; payload: InferencePayload } | null;
+  externalPayload?: { key: string; mode: InferenceInputMode; payload: InferencePayload } | null;
   onRunInference: (mode: InferenceInputMode, payload: InferencePayload) => void;
 }
 
@@ -200,10 +200,19 @@ export const InferencePlayground: React.FC<InferencePlaygroundProps> = ({
 
   const handleImportCsv = async (file: File | undefined) => {
     if (!file) return;
-    const text = await file.text();
-    setBatchText(text);
-    setMode('batch');
-    setFieldErrors({});
+    if (file.size > 10 * 1024 * 1024) {
+      setFieldErrors({ batchText: 'Le fichier CSV dépasse la limite de 10 Mo.' });
+      setMode('batch');
+      return;
+    }
+    try {
+      const text = await file.text();
+      setBatchText(text);
+      setMode('batch');
+      setFieldErrors({});
+    } catch {
+      setFieldErrors({ batchText: 'Impossible de lire le fichier CSV.' });
+    }
   };
 
   return (
@@ -434,7 +443,7 @@ export const InferencePlayground: React.FC<InferencePlaygroundProps> = ({
             className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg studio-elevated text-xs font-medium hover:text-sky-400 transition-colors"
             title="Générer des valeurs réalistes à partir des statistiques apprises du modèle"
           >
-            <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+            <Dices className="w-3.5 h-3.5 text-amber-400" />
             <span>Valeurs plausibles</span>
           </button>
           <button

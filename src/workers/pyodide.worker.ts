@@ -46,7 +46,7 @@ async function ensureInitialized(): Promise<PyodideInstance> {
     try {
       postProgress({
         stage: 'wasm',
-        message: 'Téléchargement du noyau WebAssembly Pyodide…',
+        message: 'Chargement de l’environnement Python…',
         percent: 20,
       });
 
@@ -83,7 +83,7 @@ await micropip.install("skops")
 
       postProgress({
         stage: 'engine',
-        message: 'Montage de core/sklearn_engine.py dans le FS Pyodide…',
+        message: 'Initialisation du moteur d’analyse…',
         percent: 88,
       });
 
@@ -98,7 +98,7 @@ import sklearn_engine
       pyodide = instance;
       postProgress({
         stage: 'ready',
-        message: 'Pyodide prêt (100% local)',
+        message: 'Environnement prêt',
         percent: 100,
       });
     } catch (err) {

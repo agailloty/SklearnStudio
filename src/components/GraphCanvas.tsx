@@ -82,6 +82,43 @@ export const GraphCanvas: React.FC<GraphCanvasProps> = ({
     fitToScreen();
   }, [fitToScreen]);
 
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    const onWheel = (e: WheelEvent) => {
+      e.preventDefault();
+      const factor = e.deltaY < 0 ? 1.12 : 0.89;
+      const rect = el.getBoundingClientRect();
+      const px = e.clientX - rect.left;
+      const py = e.clientY - rect.top;
+      setTransform((prev) => {
+        const nextScale = Math.min(MAX_SCALE, Math.max(MIN_SCALE, prev.scale * factor));
+        const ratio = nextScale / prev.scale;
+        return {
+          scale: nextScale,
+          x: px - (px - prev.x) * ratio,
+          y: py - (py - prev.y) * ratio,
+        };
+      });
+    };
+    el.addEventListener('wheel', onWheel, { passive: false });
+    return () => el.removeEventListener('wheel', onWheel);
+  }, []);
+
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (
+        e.key === 'Home' &&
+        !(e.target instanceof HTMLInputElement) &&
+        !(e.target instanceof HTMLTextAreaElement)
+      ) {
+        fitToScreen();
+      }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [fitToScreen]);
+
   const zoomAt = useCallback((clientX: number, clientY: number, factor: number) => {
     const el = containerRef.current;
     if (!el) return;
@@ -99,12 +136,6 @@ export const GraphCanvas: React.FC<GraphCanvasProps> = ({
       };
     });
   }, []);
-
-  const handleWheel = (e: React.WheelEvent<HTMLDivElement>) => {
-    e.preventDefault();
-    const factor = e.deltaY < 0 ? 1.12 : 0.89;
-    zoomAt(e.clientX, e.clientY, factor);
-  };
 
   const handleMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
     if (e.button !== 0) return;
@@ -154,7 +185,6 @@ export const GraphCanvas: React.FC<GraphCanvasProps> = ({
   return (
     <div
       ref={containerRef}
-      onWheel={handleWheel}
       onMouseDown={handleMouseDown}
       onMouseMove={handleMouseMove}
       onMouseUp={handleMouseUp}

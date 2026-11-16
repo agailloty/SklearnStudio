@@ -30,25 +30,38 @@ function downloadBlob(content: string, filename: string, mime: string) {
   URL.revokeObjectURL(url);
 }
 
+function escapeCsvCell(value: unknown): string {
+  const raw =
+    value === null || value === undefined
+      ? ''
+      : typeof value === 'object'
+        ? JSON.stringify(value)
+        : String(value);
+  if (/[",\r\n]/.test(raw)) {
+    return `"${raw.replace(/"/g, '""')}"`;
+  }
+  return raw;
+}
+
 function exportResultCsv(result: InferenceResult): string {
   const headers = ['row'];
-  const columnsData: string[][] = [];
+  const columnsData: unknown[][] = [];
   for (const out of result.outputs) {
     const vals = out.values;
     if (Array.isArray(vals) && Array.isArray(vals[0])) {
       const width = (vals[0] as unknown[]).length;
       for (let j = 0; j < width; j++) {
         headers.push(`${out.name}[${j}]`);
-        columnsData.push(vals.map((r) => String((r as unknown[])[j] ?? '')));
+        columnsData.push(vals.map((r) => (r as unknown[])[j] ?? ''));
       }
     } else if (Array.isArray(vals)) {
       headers.push(out.name);
-      columnsData.push(vals.map((v) => String(v ?? '')));
+      columnsData.push(vals.map((v) => v ?? ''));
     }
   }
-  const lines = [headers.join(',')];
+  const lines = [headers.map(escapeCsvCell).join(',')];
   for (let i = 0; i < result.rowCount; i++) {
-    const row = [String(i + 1), ...columnsData.map((col) => JSON.stringify(col[i] ?? ''))];
+    const row = [String(i + 1), ...columnsData.map((col) => escapeCsvCell(col[i]))];
     lines.push(row.join(','));
   }
   return lines.join('\n');
@@ -76,7 +89,8 @@ const SingleRowOutputCard: React.FC<{ output: FormattedOutput }> = ({ output }) 
 
         <div className="space-y-2">
           {output.topClasses.map((cls, idx) => {
-            const val = cls.value ?? 0;
+            const rawVal = cls.value ?? 0;
+            const val = Number.isFinite(rawVal) ? rawVal : 0;
             const pct = isProba
               ? Math.max(0, Math.min(100, val * 100))
               : Math.max(0, Math.min(100, (Math.abs(val) / maxAbs) * 100));

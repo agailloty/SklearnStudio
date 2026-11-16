@@ -8,6 +8,7 @@ import {
   Search,
   X,
 } from 'lucide-react';
+import { ErrorBoundary } from './components/ErrorBoundary';
 import { GraphCanvas } from './components/GraphCanvas';
 import { InferencePlayground } from './components/InferencePlayground';
 import { InferenceResults } from './components/InferenceResults';
@@ -70,6 +71,7 @@ export const App: React.FC = () => {
     Record<string, InferenceHistoryItem[]>
   >({});
   const [replayPayload, setReplayPayload] = useState<{
+    key: string;
     mode: InferenceInputMode;
     payload: InferencePayload;
   } | null>(null);
@@ -317,6 +319,7 @@ export const App: React.FC = () => {
       )}
 
       {/* Main Content */}
+      <ErrorBoundary onReset={() => setActiveView('inspector')}>
       {!activeModel ? (
         <WelcomeDropzone
           isLoading={isLoadingModel}
@@ -462,7 +465,11 @@ export const App: React.FC = () => {
               result={inferenceResults[activeModel.id] ?? null}
               history={inferenceHistory[activeModel.id] ?? []}
               onReplayHistory={(item) =>
-                setReplayPayload({ mode: item.mode, payload: item.payload })
+                setReplayPayload({
+                  key: `${item.id}_${Date.now()}`,
+                  mode: item.mode,
+                  payload: item.payload,
+                })
               }
             />
           </div>
@@ -470,6 +477,7 @@ export const App: React.FC = () => {
       ) : (
         <MetadataWeightsView model={activeModel} />
       )}
+      </ErrorBoundary>
 
       {openModalVisible && (
         <WelcomeDropzone

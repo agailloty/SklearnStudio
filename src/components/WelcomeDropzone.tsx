@@ -1,9 +1,9 @@
 import React, { useRef, useState } from 'react';
 import {
   FileCode2,
+  GitBranch,
   Lock,
   ShieldAlert,
-  Sparkles,
   Table2,
   Type,
   UploadCloud,
@@ -37,7 +37,7 @@ const DEMO_CARDS: Array<{
     title: 'Iris Classifier Pipeline',
     subtitle: 'StandardScaler → LogisticRegression (4 variables numériques nommées)',
     layoutBadge: 'matrix',
-    icon: <Sparkles className="w-4 h-4 text-emerald-400" />,
+    icon: <GitBranch className="w-4 h-4 text-emerald-400" />,
     accent: 'hover:border-emerald-500/40',
   },
   {
@@ -99,14 +99,14 @@ export const WelcomeDropzone: React.FC<WelcomeDropzoneProps> = ({
         <div className="space-y-1.5">
           <div className="inline-flex items-center gap-2 px-2.5 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/25 text-emerald-400 text-xs font-medium">
             <Lock className="w-3.5 h-3.5" />
-            <span>Vos modèles ne quittent jamais votre ordinateur • Exécution 100% WASM</span>
+            <span>Traitement local dans le navigateur — aucun fichier envoyé sur serveur</span>
           </div>
           <h1 className="text-2xl font-bold tracking-tight">
             Inspecteur & Playground <span className="text-sky-400">scikit-learn</span>
           </h1>
           <p className="text-sm text-[var(--text-secondary)]">
             Explorez le graphe DAG, les hyperparamètres, les attributs appris et testez l’inférence
-            en ligne directement dans votre navigateur via Pyodide.
+            en ligne directement dans votre navigateur.
           </p>
         </div>
 

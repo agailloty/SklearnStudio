@@ -97,6 +97,12 @@ class PyodideClient {
   }
 
   public async loadModelBytes(filename: string, buffer: ArrayBuffer): Promise<LoadModelResponse> {
+    if (buffer.byteLength === 0) {
+      return {
+        ok: false,
+        error: { code: 'invalid_input', message: 'Le fichier sélectionné est vide.' },
+      };
+    }
     return this.call<LoadModelResponse>('LOAD_MODEL_BYTES', { filename, buffer }, [buffer]);
   }
 

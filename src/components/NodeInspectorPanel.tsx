@@ -7,7 +7,7 @@ import {
   GitBranch,
   Search,
   SlidersHorizontal,
-  Sparkles,
+  Tag,
   X,
 } from 'lucide-react';
 import type { GraphNode, StructureNode } from '../types/model';
@@ -313,7 +313,7 @@ export const NodeInspectorPanel: React.FC<NodeInspectorPanelProps> = ({
         {/* Fitted Attributes */}
         <section className="space-y-3">
           <div className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-[var(--text-muted)]">
-            <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+            <Tag className="w-3.5 h-3.5 text-amber-400" />
             <span>Attributs appris ({fittedEntries.length})</span>
           </div>
 

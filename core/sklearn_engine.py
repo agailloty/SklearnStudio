@@ -262,7 +262,7 @@ def _harmonize_loaded_model(model: Any, collected_warnings: list[str]) -> Any:
         preview = ", ".join(unique_patched[:8])
         suffix = f" (+{len(unique_patched) - 8} autres)" if len(unique_patched) > 8 else ""
         collected_warnings.append(
-            f"Compatibilité auto (Couche A) : attribut(s) complété(s) : {preview}{suffix}"
+            f"Compatibilité auto : attribut(s) complété(s) : {preview}{suffix}"
         )
 
     return model

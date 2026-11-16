@@ -70,7 +70,7 @@ export const MetadataWeightsView: React.FC<MetadataWeightsViewProps> = ({ model 
                 </div>
               </div>
               <div className="studio-elevated rounded-lg p-2.5">
-                <div className="text-[var(--text-muted)] text-[11px]">Runtime Pyodide</div>
+                <div className="text-[var(--text-muted)] text-[11px]">Runtime scikit-learn</div>
                 <div className="font-mono font-semibold">
                   {model.info.runtimeSklearn ?? 'Inconnu'}
                 </div>
@@ -81,7 +81,7 @@ export const MetadataWeightsView: React.FC<MetadataWeightsViewProps> = ({ model 
           <div className="studio-panel rounded-xl p-4 space-y-3">
             <div className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-[var(--text-muted)]">
               <Package className="w-3.5 h-3.5 text-indigo-400" />
-              <span>Versions des paquets WASM</span>
+              <span>Versions des paquets</span>
             </div>
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 text-xs">
               {Object.entries(model.info.packages || {}).map(([pkg, ver]) => (
