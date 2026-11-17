@@ -15,6 +15,7 @@ import type {
   InspectedModel,
 } from '../types/model';
 import { generatePlausibleFeatureValues } from '../utils/format';
+import { useI18n, type MessageKey } from '../i18n';
 
 interface InferencePlaygroundProps {
   model: InspectedModel;
@@ -49,6 +50,7 @@ export const InferencePlayground: React.FC<InferencePlaygroundProps> = ({
   externalPayload,
   onRunInference,
 }) => {
+  const { t } = useI18n();
   const hasFeatureFields = model.formSchema.featureFields.length > 0;
   const [mode, setMode] = useState<InferenceInputMode>(hasFeatureFields ? 'form' : 'vector');
   const [method, setMethod] = useState<string>('all');
@@ -59,7 +61,7 @@ export const InferencePlayground: React.FC<InferencePlaygroundProps> = ({
     () => buildDefaultFieldValues(model)
   );
   const [batchText, setBatchText] = useState<string>('');
-  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+  const [fieldErrors, setFieldErrors] = useState<Record<string, MessageKey>>({});
   const csvInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -95,7 +97,7 @@ export const InferencePlayground: React.FC<InferencePlaygroundProps> = ({
   }, [externalPayload]);
 
   const validateAndSubmit = () => {
-    const errors: Record<string, string> = {};
+    const errors: Record<string, MessageKey> = {};
 
     if (mode === 'form') {
       if (model.inputLayout !== 'columns') {
@@ -103,7 +105,7 @@ export const InferencePlayground: React.FC<InferencePlaygroundProps> = ({
           if (f.inputType === 'number') {
             const raw = (featureValues[f.name] ?? '').trim();
             if (raw === '' || !Number.isFinite(Number(raw))) {
-              errors[f.name] = 'Entrez un nombre fini.';
+              errors[f.name] = 'playground.errorFinite';
             }
           }
         }
@@ -116,7 +118,7 @@ export const InferencePlayground: React.FC<InferencePlaygroundProps> = ({
               !['nan', 'na', 'null', 'none'].includes(raw.toLowerCase()) &&
               !Number.isFinite(Number(raw))
             ) {
-              errors[f.name] = 'Nombre invalide (ou laissez vide pour NaN).';
+              errors[f.name] = 'playground.errorInvalidNumber';
             }
           }
         }
@@ -139,7 +141,7 @@ export const InferencePlayground: React.FC<InferencePlaygroundProps> = ({
     }
 
     if (!batchText.trim()) {
-      setFieldErrors({ batchText: 'Veuillez saisir au moins une ligne de données.' });
+      setFieldErrors({ batchText: 'playground.errorBatchEmpty' });
       return;
     }
     setFieldErrors({});
@@ -201,7 +203,7 @@ export const InferencePlayground: React.FC<InferencePlaygroundProps> = ({
   const handleImportCsv = async (file: File | undefined) => {
     if (!file) return;
     if (file.size > 10 * 1024 * 1024) {
-      setFieldErrors({ batchText: 'Le fichier CSV dépasse la limite de 10 Mo.' });
+      setFieldErrors({ batchText: 'playground.errorCsvTooLarge' });
       setMode('batch');
       return;
     }
@@ -211,7 +213,7 @@ export const InferencePlayground: React.FC<InferencePlaygroundProps> = ({
       setMode('batch');
       setFieldErrors({});
     } catch {
-      setFieldErrors({ batchText: 'Impossible de lire le fichier CSV.' });
+      setFieldErrors({ batchText: 'playground.errorCsvRead' });
     }
   };
 
@@ -223,15 +225,15 @@ export const InferencePlayground: React.FC<InferencePlaygroundProps> = ({
       {/* Header + Mode Tabs */}
       <div className="p-4 border-b border-[var(--border-subtle)] space-y-3 shrink-0">
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <h2 className="text-sm font-semibold">Entrées d'inférence</h2>
+          <h2 className="text-sm font-semibold">{t('playground.title')}</h2>
           <div className="flex items-center gap-2">
-            <label className="text-[11px] text-[var(--text-muted)]">Méthode :</label>
+            <label className="text-[11px] text-[var(--text-muted)]">{t('playground.method')}</label>
             <select
               value={method}
               onChange={(e) => setMethod(e.target.value)}
               className="px-2 py-1 rounded-lg studio-elevated font-mono text-xs focus:outline-none focus:ring-1 focus:ring-sky-500"
             >
-              <option value="all">all (toutes)</option>
+              <option value="all">{t('playground.methodAll')}</option>
               {model.info.methods.map((m) => (
                 <option key={m} value={m}>
                   {m}
@@ -253,7 +255,7 @@ export const InferencePlayground: React.FC<InferencePlaygroundProps> = ({
             }`}
           >
             <ListChecks className="w-3.5 h-3.5" />
-            <span>Formulaire</span>
+            <span>{t('playground.form')}</span>
           </button>
           <button
             type="button"
@@ -265,7 +267,7 @@ export const InferencePlayground: React.FC<InferencePlaygroundProps> = ({
             }`}
           >
             <Terminal className="w-3.5 h-3.5" />
-            <span>Vecteur brut</span>
+            <span>{t('playground.vector')}</span>
           </button>
           <button
             type="button"
@@ -277,7 +279,7 @@ export const InferencePlayground: React.FC<InferencePlaygroundProps> = ({
             }`}
           >
             <FileSpreadsheet className="w-3.5 h-3.5" />
-            <span>Batch CSV</span>
+            <span>{t('playground.batch')}</span>
           </button>
         </div>
       </div>
@@ -346,11 +348,11 @@ export const InferencePlayground: React.FC<InferencePlaygroundProps> = ({
                         }`}
                       />
                       {err ? (
-                        <p className="text-[11px] text-rose-400">{err}</p>
+                        <p className="text-[11px] text-rose-400">{t(err)}</p>
                       ) : (
                         <p className="text-[10px] text-[var(--text-muted)] truncate">
                           {f.description}
-                          {model.inputLayout === 'columns' ? ' (vide = NaN)' : ''}
+                          {model.inputLayout === 'columns' ? ` ${t('playground.emptyNan')}` : ''}
                         </p>
                       )}
                     </div>
@@ -393,7 +395,7 @@ export const InferencePlayground: React.FC<InferencePlaygroundProps> = ({
           <div className="space-y-3">
             <div className="flex items-center justify-between gap-2">
               <span className="text-xs text-[var(--text-secondary)]">
-                Une ligne par échantillon (séparateur `,`, `;` ou tabulation)
+                {t('playground.batchHint')}
               </span>
               <input
                 ref={csvInputRef}
@@ -411,7 +413,7 @@ export const InferencePlayground: React.FC<InferencePlaygroundProps> = ({
                 className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg studio-elevated text-xs font-medium hover:text-sky-400"
               >
                 <Upload className="w-3.5 h-3.5" />
-                <span>Importer un .csv</span>
+                <span>{t('playground.importCsv')}</span>
               </button>
             </div>
             <textarea
@@ -420,7 +422,7 @@ export const InferencePlayground: React.FC<InferencePlaygroundProps> = ({
               onChange={(e) => setBatchText(e.target.value)}
               placeholder={
                 model.inputLayout === 'text'
-                  ? 'Une phrase ou document par ligne…'
+                  ? t('playground.batchPlaceholderText')
                   : model.formSchema.featureNames.length > 0
                     ? `${model.formSchema.featureNames.join(', ')}\n...`
                     : '5.1, 3.5, 1.4, 0.2\n6.7, 3.0, 5.2, 2.3'
@@ -428,7 +430,7 @@ export const InferencePlayground: React.FC<InferencePlaygroundProps> = ({
               className="w-full px-3 py-2 rounded-lg studio-elevated font-mono text-xs focus:outline-none focus:ring-1 focus:ring-sky-500"
             />
             {fieldErrors.batchText && (
-              <p className="text-xs text-rose-400">{fieldErrors.batchText}</p>
+              <p className="text-xs text-rose-400">{t(fieldErrors.batchText)}</p>
             )}
           </div>
         )}
@@ -441,10 +443,10 @@ export const InferencePlayground: React.FC<InferencePlaygroundProps> = ({
             type="button"
             onClick={handleGeneratePlausible}
             className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg studio-elevated text-xs font-medium hover:text-sky-400 transition-colors"
-            title="Générer des valeurs réalistes à partir des statistiques apprises du modèle"
+            title={t('playground.plausibleTitle')}
           >
             <Dices className="w-3.5 h-3.5 text-amber-400" />
-            <span>Valeurs plausibles</span>
+            <span>{t('playground.plausible')}</span>
           </button>
           <button
             type="button"
@@ -452,7 +454,7 @@ export const InferencePlayground: React.FC<InferencePlaygroundProps> = ({
             className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg studio-elevated text-xs text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
           >
             <RotateCcw className="w-3.5 h-3.5" />
-            <span>Réinitialiser</span>
+            <span>{t('playground.reset')}</span>
           </button>
         </div>
 
@@ -464,7 +466,7 @@ export const InferencePlayground: React.FC<InferencePlaygroundProps> = ({
           title="Ctrl+Enter"
         >
           <Play className="w-3.5 h-3.5" />
-          <span>{isRunning ? 'Calcul…' : "Exécuter l'inférence"}</span>
+          <span>{isRunning ? t('playground.computing') : t('playground.run')}</span>
         </button>
       </div>
     </div>

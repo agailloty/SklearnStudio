@@ -13,6 +13,7 @@ import type {
   InferenceHistoryItem,
   InferenceResult,
 } from '../types/model';
+import { useI18n } from '../i18n';
 
 interface InferenceResultsProps {
   result: InferenceResult | null;
@@ -141,6 +142,7 @@ export const InferenceResults: React.FC<InferenceResultsProps> = ({
   history,
   onReplayHistory,
 }) => {
+  const { t } = useI18n();
   const predictOut = result?.formattedOutputs.find((o) => o.name === 'predict');
   const otherOutputs = result?.formattedOutputs.filter((o) => o.name !== 'predict') ?? [];
 
@@ -148,7 +150,7 @@ export const InferenceResults: React.FC<InferenceResultsProps> = ({
     <div className="studio-panel rounded-xl flex flex-col h-full overflow-hidden">
       {/* Header */}
       <div className="p-4 border-b border-[var(--border-subtle)] flex flex-wrap items-center justify-between gap-2 shrink-0">
-        <h2 className="text-sm font-semibold">Résultats en direct</h2>
+        <h2 className="text-sm font-semibold">{t('results.title')}</h2>
         {result && (
           <div className="flex items-center gap-2">
             <button
@@ -185,11 +187,9 @@ export const InferenceResults: React.FC<InferenceResultsProps> = ({
           <div className="h-48 flex flex-col items-center justify-center text-center text-[var(--text-muted)]">
             <Layers className="w-8 h-8 mb-2 opacity-40" />
             <p className="text-sm font-medium text-[var(--text-secondary)]">
-              Aucune prédiction exécutée
+              {t('results.none')}
             </p>
-            <p className="text-xs mt-1">
-              Remplissez le formulaire à gauche et cliquez sur « Exécuter l'inférence ».
-            </p>
+            <p className="text-xs mt-1">{t('results.noneHint')}</p>
           </div>
         ) : (
           <>
@@ -201,7 +201,9 @@ export const InferenceResults: React.FC<InferenceResultsProps> = ({
               </div>
               <span className="text-[var(--border-strong)]">•</span>
               <span className="font-mono">
-                {result.rowCount} échantillon{result.rowCount > 1 ? 's' : ''}
+                {result.rowCount > 1
+                  ? t('results.samplesMany', { count: result.rowCount })
+                  : t('results.sampleOne')}
               </span>
               {result.warnings.length > 0 && (
                 <>
@@ -211,7 +213,7 @@ export const InferenceResults: React.FC<InferenceResultsProps> = ({
                     title={result.warnings.join('\n')}
                   >
                     <AlertTriangle className="w-3.5 h-3.5" />
-                    <span>{result.warnings.length} avertissement(s)</span>
+                    <span>{t('results.warningsCount', { count: result.warnings.length })}</span>
                   </span>
                 </>
               )}
@@ -222,7 +224,7 @@ export const InferenceResults: React.FC<InferenceResultsProps> = ({
                 {predictOut && (
                   <div className="rounded-xl border border-emerald-500/35 bg-emerald-500/10 p-4 space-y-1">
                     <div className="text-[11px] font-semibold uppercase tracking-wider text-emerald-400">
-                      Prédiction principale (predict)
+                      {t('results.mainPrediction')}
                     </div>
                     <div className="font-mono text-2xl font-bold text-[var(--text-primary)]">
                       {predictOut.scalarDisplay || predictOut.displayValues[0] || '—'}
@@ -278,7 +280,7 @@ export const InferenceResults: React.FC<InferenceResultsProps> = ({
           <section className="pt-2 border-t border-[var(--border-subtle)] space-y-2">
             <div className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-[var(--text-muted)]">
               <History className="w-3.5 h-3.5" />
-              <span>Historique de session ({history.length}/10)</span>
+              <span>{t('results.history', { count: history.length })}</span>
             </div>
             <div className="space-y-1.5">
               {history.map((item) => {
@@ -296,7 +298,8 @@ export const InferenceResults: React.FC<InferenceResultsProps> = ({
                         {item.mode}
                       </span>
                       <span className="font-mono truncate">
-                        {pred?.scalarDisplay || `${item.result.rowCount} lignes`}
+                        {pred?.scalarDisplay ||
+                          t('results.historyRows', { count: item.result.rowCount })}
                       </span>
                     </div>
                     <span className="font-mono text-[10px] text-[var(--text-muted)] shrink-0">

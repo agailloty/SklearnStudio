@@ -17,6 +17,7 @@ import { NodeInspectorPanel } from './components/NodeInspectorPanel';
 import { StructureTree } from './components/StructureTree';
 import { type StudioView, TopBar } from './components/TopBar';
 import { WelcomeDropzone } from './components/WelcomeDropzone';
+import { useI18n } from './i18n';
 import { pyodideClient } from './services/pyodideClient';
 import type {
   DemoModelKind,
@@ -40,9 +41,11 @@ export const App: React.FC = () => {
     return saved === 'light' ? 'light' : 'dark';
   });
 
+  const { locale, localeTag, t } = useI18n();
+
   const [pyodideProgress, setPyodideProgress] = useState<PyodideProgress>({
     stage: 'idle',
-    message: 'Initialisation de Pyodide…',
+    key: 'progress.idle',
     percent: 0,
   });
 
@@ -93,6 +96,10 @@ export const App: React.FC = () => {
     });
     return unsub;
   }, []);
+
+  useEffect(() => {
+    pyodideClient.setLocale(locale);
+  }, [locale]);
 
   const activeModel = models.find((m) => m.id === activeModelId) ?? null;
 
@@ -165,7 +172,13 @@ export const App: React.FC = () => {
       const res = await pyodideClient.installPackage(pkg);
       if (!res.ok) {
         setInstallFallbackMsg(
-          `Impossible d'installer « ${pkg} » via micropip (${res.error ?? 'wheel pur Python introuvable'}). Certains packages compilés C/C++ ne sont pas disponibles dans Pyodide.`
+          t('app.installFailed', {
+            pkg,
+            error:
+              res.error === 'EMPTY_PACKAGE_NAME'
+                ? t('app.emptyPackageName')
+                : res.error ?? t('app.purePythonWheelMissing'),
+          })
         );
         return;
       }
@@ -221,7 +234,7 @@ export const App: React.FC = () => {
         setInferenceResults((prev) => ({ ...prev, [modelId]: res.result }));
         const historyItem: InferenceHistoryItem = {
           id: `${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
-          timestamp: new Date().toLocaleTimeString(),
+          timestamp: new Date().toLocaleTimeString(localeTag),
           mode,
           method: payload.method ?? 'all',
           payload,
@@ -273,10 +286,12 @@ export const App: React.FC = () => {
             <div className="space-y-1">
               <div className="font-semibold text-rose-300">
                 {loadError.code === 'missing_module' && loadError.missingPackage
-                  ? `Dépendance Python manquante : ${loadError.missingPackage}`
-                  : 'Impossible de charger le modèle'}
+                  ? t('app.missingDependency', { pkg: loadError.missingPackage })
+                  : t('app.loadFailed')}
               </div>
-              <p className="text-[var(--text-secondary)]">{loadError.message}</p>
+              <p className="text-[var(--text-secondary)]">
+                {loadError.messageKey ? t(loadError.messageKey) : loadError.message}
+              </p>
               {installFallbackMsg && (
                 <p className="text-amber-300 font-medium">{installFallbackMsg}</p>
               )}
@@ -298,8 +313,8 @@ export const App: React.FC = () => {
                 )}
                 <span>
                   {isInstallingPkg
-                    ? `Installation de ${loadError.missingPackage}…`
-                    : `Installer « ${loadError.missingPackage} » via micropip et réessayer`}
+                    ? t('app.installing', { pkg: loadError.missingPackage })
+                    : t('app.installAndRetry', { pkg: loadError.missingPackage })}
                 </span>
               </button>
             )}
@@ -310,7 +325,7 @@ export const App: React.FC = () => {
                 setInstallFallbackMsg(null);
               }}
               className="p-1.5 rounded-lg hover:bg-rose-500/20 text-rose-300"
-              aria-label="Fermer l'alerte"
+              aria-label={t('app.dismissAlert')}
             >
               <X className="w-4 h-4" />
             </button>
@@ -335,14 +350,18 @@ export const App: React.FC = () => {
           <div className="studio-panel border-t-0 border-x-0 px-4 py-2.5 flex flex-wrap items-center justify-between gap-3 shrink-0">
             <div className="flex flex-wrap items-center gap-2 text-[11px]">
               <span className="px-2 py-1 rounded-md studio-elevated font-mono">
-                Nœuds : <strong>{activeModel.graph.statistics.nodeCount}</strong>
+                {t('app.nodes')}{' '}
+                <strong>{activeModel.graph.statistics.nodeCount.toLocaleString(localeTag)}</strong>
               </span>
               <span className="px-2 py-1 rounded-md studio-elevated font-mono">
-                Arêtes : <strong>{activeModel.graph.statistics.edgeCount}</strong>
+                {t('app.edges')}{' '}
+                <strong>{activeModel.graph.statistics.edgeCount.toLocaleString(localeTag)}</strong>
               </span>
               <span className="px-2 py-1 rounded-md studio-elevated font-mono">
-                Paramètres :{' '}
-                <strong>{activeModel.graph.statistics.totalParameters.toLocaleString()}</strong>
+                {t('app.parameters')}{' '}
+                <strong>
+                  {activeModel.graph.statistics.totalParameters.toLocaleString(localeTag)}
+                </strong>
               </span>
               {activeModel.info.runtimeSklearn && (
                 <span className="hidden md:inline px-2 py-1 rounded-md studio-elevated font-mono">
@@ -351,7 +370,8 @@ export const App: React.FC = () => {
               )}
               {activeModel.info.classes && (
                 <span className="hidden lg:inline px-2 py-1 rounded-md studio-elevated font-mono">
-                  Classes : <strong>{activeModel.info.classes.length}</strong>
+                  {t('app.classes')}{' '}
+                  <strong>{activeModel.info.classes.length}</strong>
                 </span>
               )}
               <span className="hidden xl:inline px-2 py-1 rounded-md studio-elevated font-mono text-[var(--text-muted)]">
@@ -368,7 +388,7 @@ export const App: React.FC = () => {
                       type="text"
                       value={searchQuery}
                       onChange={(e) => setSearchQuery(e.target.value)}
-                      placeholder="Rechercher un nœud…"
+                      placeholder={t('app.searchNode')}
                       className="pl-8 pr-3 py-1 rounded-lg studio-elevated text-xs w-44 focus:outline-none focus:ring-1 focus:ring-sky-500"
                     />
                   </div>
@@ -403,7 +423,7 @@ export const App: React.FC = () => {
                   }`}
                 >
                   <GitFork className="w-3.5 h-3.5" />
-                  <span>Graphe DAG</span>
+                  <span>{t('app.dagGraph')}</span>
                 </button>
                 <button
                   type="button"
@@ -415,7 +435,7 @@ export const App: React.FC = () => {
                   }`}
                 >
                   <Layers className="w-3.5 h-3.5" />
-                  <span>Arbre de structure</span>
+                  <span>{t('app.structureTree')}</span>
                 </button>
               </div>
             </div>

@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Home, Map as MapIcon, Minus, Plus } from 'lucide-react';
 import type { GraphNode, ModelGraph } from '../types/model';
 import { getCategoryStyle } from '../utils/format';
+import { useI18n } from '../i18n';
 
 interface GraphCanvasProps {
   graph: ModelGraph;
@@ -27,6 +28,7 @@ export const GraphCanvas: React.FC<GraphCanvasProps> = ({
   activeCategory,
   onSelectNode,
 }) => {
+  const { t } = useI18n();
   const containerRef = useRef<HTMLDivElement>(null);
   const [transform, setTransform] = useState<Transform>({ x: 40, y: 40, scale: 1 });
   const [isPanning, setIsPanning] = useState(false);
@@ -363,7 +365,7 @@ export const GraphCanvas: React.FC<GraphCanvasProps> = ({
             if (rect) zoomAt(rect.left + rect.width / 2, rect.top + rect.height / 2, 1.2);
           }}
           className="p-1.5 rounded-lg hover:bg-[var(--bg-elevated)] text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
-          title="Zoom avant"
+          title={t('canvas.zoomIn')}
         >
           <Plus className="w-4 h-4" />
         </button>
@@ -377,7 +379,7 @@ export const GraphCanvas: React.FC<GraphCanvasProps> = ({
             if (rect) zoomAt(rect.left + rect.width / 2, rect.top + rect.height / 2, 0.83);
           }}
           className="p-1.5 rounded-lg hover:bg-[var(--bg-elevated)] text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
-          title="Zoom arrière"
+          title={t('canvas.zoomOut')}
         >
           <Minus className="w-4 h-4" />
         </button>
@@ -386,7 +388,7 @@ export const GraphCanvas: React.FC<GraphCanvasProps> = ({
           type="button"
           onClick={fitToScreen}
           className="p-1.5 rounded-lg hover:bg-[var(--bg-elevated)] text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
-          title="Ajuster à l'écran (Home)"
+          title={t('canvas.fit')}
         >
           <Home className="w-4 h-4" />
         </button>
@@ -396,7 +398,7 @@ export const GraphCanvas: React.FC<GraphCanvasProps> = ({
           className={`p-1.5 rounded-lg hover:bg-[var(--bg-elevated)] ${
             showMinimap ? 'text-sky-400' : 'text-[var(--text-secondary)]'
           }`}
-          title="Afficher / masquer la minimap"
+          title={t('canvas.minimap')}
         >
           <MapIcon className="w-4 h-4" />
         </button>

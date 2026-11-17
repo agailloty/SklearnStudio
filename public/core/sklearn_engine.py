@@ -31,6 +31,63 @@ MAX_COMPONENT_DEPTH = 8
 MAX_COMPONENT_CHILDREN = 50
 MAX_FITTED_ATTRIBUTES = 60
 
+# -------------------------------------------------------------- localization
+
+# Locale of engine-generated diagnostics ("en" or "fr"). The web worker calls
+# set_locale() after loading the module and whenever the UI language changes.
+LOCALE = "en"
+
+_ENGINE_MESSAGES: dict[str, dict[str, str]] = {
+    "more_suffix": {
+        "en": " (+{count} more)",
+        "fr": " (+{count} autres)",
+    },
+    "skops_untrusted_types": {
+        "en": "skops: non-standard types trusted in the WASM sandbox: {preview}{suffix}",
+        "fr": "skops : types non-standard approuvés dans le sandbox WASM : {preview}{suffix}",
+    },
+    "auto_compat_patched": {
+        "en": "Auto compatibility: completed attribute(s): {preview}{suffix}",
+        "fr": "Compatibilité auto : attribut(s) complété(s) : {preview}{suffix}",
+    },
+    "skops_format_needs_package": {
+        "en": "This model uses the recommended .skops format and requires the Python package 'skops'.",
+        "fr": "Ce modèle est au format recommandé .skops et nécessite le package Python 'skops'.",
+    },
+    "loaded_via_fallback_loader": {
+        "en": "Loaded via {loader} (fallback): scikit-learn version incompatibilities may occur. Prefer the .skops format.",
+        "fr": "Chargé via {loader} (recours) : des incompatibilités de version scikit-learn peuvent survenir. Privilégiez le format .skops.",
+    },
+    "cython_binary_mismatch": {
+        "en": "Cython binary incompatibility between the training scikit-learn version and this runtime ({error}). Export the model with skops or re-export it.",
+        "fr": "Incompatibilité binaire Cython entre la version scikit-learn d'entraînement et ce runtime ({error}). Exportez le modèle avec skops ou ré-exportez-le.",
+    },
+    "unknown_version": {
+        "en": "unknown",
+        "fr": "inconnue",
+    },
+    "inference_version_mismatch": {
+        "en": "scikit-learn compatibility error during inference (trained: v{trained}, runtime: v{runtime}): {error}. Prefer the .skops format.",
+        "fr": "Erreur de compatibilité scikit-learn à l'inférence (entraîné : v{trained}, runtime : v{runtime}) : {error}. Privilégiez le format .skops.",
+    },
+}
+
+
+def set_locale(locale: str) -> None:
+    """Set the language used for engine-generated diagnostics ('en' or 'fr')."""
+    global LOCALE
+    LOCALE = "fr" if str(locale).lower().startswith("fr") else "en"
+
+
+def tr(key: str, **params: Any) -> str:
+    """Translate an engine message into the active locale."""
+    entry = _ENGINE_MESSAGES.get(key)
+    if entry is None:
+        return key
+    template = entry.get(LOCALE) or entry["en"]
+    return template.format(**params)
+
+
 CHILD_ATTRIBUTES = (
     "best_estimator_",
     "estimator_",
@@ -137,9 +194,9 @@ def _skops_load(path: str, collected_warnings: list[str]) -> Any:
     untrusted = sio.get_untrusted_types(file=path)
     if untrusted:
         preview = ", ".join(str(t) for t in untrusted[:8])
-        suffix = f" (+{len(untrusted) - 8} autres)" if len(untrusted) > 8 else ""
+        suffix = tr("more_suffix", count=len(untrusted) - 8) if len(untrusted) > 8 else ""
         collected_warnings.append(
-            f"skops: types non-standard approuvés dans le sandbox WASM : {preview}{suffix}"
+            tr("skops_untrusted_types", preview=preview, suffix=suffix)
         )
     return sio.load(path, trusted=untrusted)
 
@@ -260,9 +317,9 @@ def _harmonize_loaded_model(model: Any, collected_warnings: list[str]) -> Any:
     if patched:
         unique_patched = list(dict.fromkeys(patched))
         preview = ", ".join(unique_patched[:8])
-        suffix = f" (+{len(unique_patched) - 8} autres)" if len(unique_patched) > 8 else ""
+        suffix = tr("more_suffix", count=len(unique_patched) - 8) if len(unique_patched) > 8 else ""
         collected_warnings.append(
-            f"Compatibilité auto : attribut(s) complété(s) : {preview}{suffix}"
+            tr("auto_compat_patched", preview=preview, suffix=suffix)
         )
 
     return model
@@ -287,7 +344,7 @@ def _run_loaders(path: str, extension: str, collected_warnings: list[str]) -> An
     if extension in SKOPS_EXTENSIONS and not has_skops:
         raise EngineError(
             "missing_module",
-            "Ce modèle est au format recommandé .skops et nécessite le package Python 'skops'.",
+            tr("skops_format_needs_package"),
             missing_package="skops",
         )
 
@@ -321,7 +378,7 @@ def _run_loaders(path: str, extension: str, collected_warnings: list[str]) -> An
                     collected_warnings.append(f"{item.category.__name__}: {item.message}")
                 if loader_name in ("pickle", "joblib"):
                     collected_warnings.append(
-                        f"Chargé via {loader_name} (recours) : des incompatibilités de version scikit-learn peuvent survenir. Privilégiez le format .skops."
+                        tr("loaded_via_fallback_loader", loader=loader_name)
                     )
                 return _harmonize_loaded_model(model, collected_warnings)
             except ModuleNotFoundError as error:
@@ -337,7 +394,10 @@ def _run_loaders(path: str, extension: str, collected_warnings: list[str]) -> An
     if last_error is not None and _is_cython_binary_mismatch(last_error):
         raise EngineError(
             "load_failed",
-            f"Incompatibilité binaire Cython entre la version scikit-learn d'entraînement et ce runtime ({type(last_error).__name__}: {last_error}). Exportez le modèle avec skops ou ré-exportez-le.",
+            tr(
+                "cython_binary_mismatch",
+                error=f"{type(last_error).__name__}: {last_error}",
+            ),
         )
 
     raise EngineError(
@@ -1731,11 +1791,16 @@ def predict(model: Any, request: dict[str, Any], collected_warnings: list[str]) 
                 outputs.append(output_of(method, getattr(model, method)(data)))
         except (AttributeError, ValueError) as error:
             if isinstance(error, AttributeError) or _is_cython_binary_mismatch(error):
-                trained_ver = sklearn_version_of(model) or "inconnue"
-                runtime_ver = installed_versions().get("scikit-learn") or "inconnue"
+                trained_ver = sklearn_version_of(model) or tr("unknown_version")
+                runtime_ver = installed_versions().get("scikit-learn") or tr("unknown_version")
                 raise EngineError(
                     "predict_failed",
-                    f"Erreur de compatibilité scikit-learn à l'inférence (entraîné: v{trained_ver}, runtime: v{runtime_ver}) : {type(error).__name__}: {error}. Privilégiez le format .skops.",
+                    tr(
+                        "inference_version_mismatch",
+                        trained=trained_ver,
+                        runtime=runtime_ver,
+                        error=f"{type(error).__name__}: {error}",
+                    ),
                 ) from error
             raise
         for item in caught:

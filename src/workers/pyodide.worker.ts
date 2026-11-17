@@ -24,14 +24,25 @@ type WorkerRequest =
   | { requestId: string; type: 'LOAD_DEMO_MODEL'; payload: { kind: DemoModelKind } }
   | { requestId: string; type: 'RUN_INFERENCE'; payload: { modelId: string; payload: InferencePayload } }
   | { requestId: string; type: 'UNLOAD_MODEL'; payload: { modelId: string } }
-  | { requestId: string; type: 'INSTALL_PACKAGE'; payload: { packageName: string } };
+  | { requestId: string; type: 'INSTALL_PACKAGE'; payload: { packageName: string } }
+  | { requestId: string; type: 'SET_LOCALE'; payload: { locale: 'en' | 'fr' } };
 
 let pyodide: PyodideInstance | null = null;
 let initPromise: Promise<void> | null = null;
 let queue: Promise<unknown> = Promise.resolve();
+let locale: 'en' | 'fr' = 'en';
 
 function postProgress(progress: PyodideProgress): void {
   self.postMessage({ type: 'PROGRESS', progress });
+}
+
+function applyEngineLocale(py: PyodideInstance): void {
+  py.globals.set('_tmp_locale', locale);
+  try {
+    py.runPython('sklearn_engine.set_locale(_tmp_locale)');
+  } finally {
+    py.globals.delete('_tmp_locale');
+  }
 }
 
 async function ensureInitialized(): Promise<PyodideInstance> {
@@ -46,7 +57,7 @@ async function ensureInitialized(): Promise<PyodideInstance> {
     try {
       postProgress({
         stage: 'wasm',
-        message: 'Chargement de l’environnement Python…',
+        key: 'progress.loadingPython',
         percent: 20,
       });
 
@@ -60,7 +71,7 @@ async function ensureInitialized(): Promise<PyodideInstance> {
 
       postProgress({
         stage: 'packages',
-        message: 'Chargement des paquets Python (numpy, scipy, scikit-learn, pandas, joblib, skops)…',
+        key: 'progress.loadingPackages',
         percent: 50,
       });
 
@@ -68,7 +79,7 @@ async function ensureInitialized(): Promise<PyodideInstance> {
 
       postProgress({
         stage: 'packages',
-        message: 'Installation de skops via micropip…',
+        key: 'progress.installingSkops',
         percent: 72,
       });
 
@@ -79,11 +90,12 @@ await micropip.install("skops")
 `);
       } catch {
         // Fallback silencieux si PyPI est inaccessible : joblib/pickle restent disponibles
+        // (silent fallback when PyPI is unreachable: joblib/pickle remain available)
       }
 
       postProgress({
         stage: 'engine',
-        message: 'Initialisation du moteur d’analyse…',
+        key: 'progress.initEngine',
         percent: 88,
       });
 
@@ -94,18 +106,20 @@ if "/home/pyodide" not in sys.path:
     sys.path.insert(0, "/home/pyodide")
 import sklearn_engine
 `);
+      applyEngineLocale(instance);
 
       pyodide = instance;
       postProgress({
         stage: 'ready',
-        message: 'Environnement prêt',
+        key: 'progress.ready',
         percent: 100,
       });
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       postProgress({
         stage: 'error',
-        message: `Échec d'initialisation Pyodide : ${msg}`,
+        key: 'progress.initFailed',
+        detail: msg,
         percent: 0,
       });
       initPromise = null;
@@ -182,7 +196,7 @@ async function handleRequest(req: WorkerRequest): Promise<unknown> {
       const py = await ensureInitialized();
       const pkg = req.payload.packageName.trim();
       if (!pkg) {
-        return { ok: false, error: 'Nom de package vide.' };
+        return { ok: false, error: 'EMPTY_PACKAGE_NAME' };
       }
       await py.loadPackage('micropip');
       py.globals.set('_tmp_pkg', pkg);
@@ -198,6 +212,14 @@ await micropip.install(_tmp_pkg)
       } finally {
         py.globals.delete('_tmp_pkg');
       }
+    }
+
+    case 'SET_LOCALE': {
+      locale = req.payload.locale === 'fr' ? 'fr' : 'en';
+      if (pyodide) {
+        applyEngineLocale(pyodide);
+      }
+      return { ok: true };
     }
   }
 }

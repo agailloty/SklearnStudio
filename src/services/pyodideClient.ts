@@ -19,7 +19,7 @@ class PyodideClient {
   private progressListeners = new Set<ProgressListener>();
   private latestProgress: PyodideProgress = {
     stage: 'idle',
-    message: 'En attente de démarrage…',
+    key: 'progress.idle',
     percent: 0,
   };
   private seq = 0;
@@ -56,7 +56,8 @@ class PyodideClient {
       const message = err.message || 'Worker crashed';
       this.latestProgress = {
         stage: 'error',
-        message: `Erreur Worker : ${message}`,
+        key: 'progress.workerError',
+        detail: message,
         percent: 0,
       };
       this.progressListeners.forEach((fn) => fn(this.latestProgress));
@@ -100,7 +101,7 @@ class PyodideClient {
     if (buffer.byteLength === 0) {
       return {
         ok: false,
-        error: { code: 'invalid_input', message: 'Le fichier sélectionné est vide.' },
+        error: { code: 'invalid_input', message: '', messageKey: 'app.emptyFile' },
       };
     }
     return this.call<LoadModelResponse>('LOAD_MODEL_BYTES', { filename, buffer }, [buffer]);
@@ -118,8 +119,20 @@ class PyodideClient {
     return this.call('UNLOAD_MODEL', { modelId });
   }
 
-  public async installPackage(packageName: string): Promise<{ ok: boolean; packageName: string; error?: string }> {
+  public async installPackage(packageName: string): Promise<{ ok: boolean; packageName?: string; error?: string }> {
     return this.call('INSTALL_PACKAGE', { packageName });
+  }
+
+  /**
+   * Propagates the UI locale to the worker so engine diagnostics are emitted
+   * in the user's language. Safe to call before or after initialization.
+   */
+  public setLocale(locale: 'en' | 'fr'): void {
+    if (this.worker) {
+      this.call('SET_LOCALE', { locale }).catch(() => {
+        // Worker not ready yet: the locale is applied at engine init time.
+      });
+    }
   }
 }
 

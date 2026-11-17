@@ -10,6 +10,7 @@ import {
   Tag,
   X,
 } from 'lucide-react';
+import { useI18n } from '../i18n';
 import type { GraphNode, StructureNode } from '../types/model';
 import { formatValuePreview, getCategoryStyle } from '../utils/format';
 
@@ -36,6 +37,7 @@ interface PaginatedArrayViewerProps {
 }
 
 const PaginatedArrayViewer: React.FC<PaginatedArrayViewerProps> = ({ name, values }) => {
+  const { t } = useI18n();
   const [page, setPage] = useState(0);
   const [copiedIdx, setCopiedIdx] = useState<number | null>(null);
 
@@ -110,7 +112,7 @@ const PaginatedArrayViewer: React.FC<PaginatedArrayViewerProps> = ({ name, value
                   type="button"
                   onClick={() => copyValue(preview.full, globalIdx)}
                   className="p-1 rounded hover:bg-slate-500/20 text-[var(--text-muted)] hover:text-[var(--text-primary)]"
-                  title="Copier la valeur complète"
+                  title={t('inspector.copyValue')}
                 >
                   {copiedIdx === globalIdx ? (
                     <Check className="w-3 h-3 text-emerald-400" />
@@ -127,7 +129,7 @@ const PaginatedArrayViewer: React.FC<PaginatedArrayViewerProps> = ({ name, value
       {total > PAGE_SIZE && (
         <div className="flex items-center justify-between text-[11px] text-[var(--text-muted)] pt-0.5">
           <span className="font-mono">
-            {start + 1}–{end} sur {total}
+            {t('inspector.pagination', { start: start + 1, end, total })}
           </span>
           <div className="flex items-center gap-1">
             <button
@@ -137,7 +139,7 @@ const PaginatedArrayViewer: React.FC<PaginatedArrayViewerProps> = ({ name, value
               className="flex items-center gap-0.5 px-2 py-0.5 rounded studio-elevated disabled:opacity-40 hover:text-[var(--text-primary)]"
             >
               <ChevronLeft className="w-3 h-3" />
-              <span>Précédent</span>
+              <span>{t('common.prev')}</span>
             </button>
             <button
               type="button"
@@ -145,7 +147,7 @@ const PaginatedArrayViewer: React.FC<PaginatedArrayViewerProps> = ({ name, value
               onClick={() => setPage((p) => Math.min(totalPages - 1, p + 1))}
               className="flex items-center gap-0.5 px-2 py-0.5 rounded studio-elevated disabled:opacity-40 hover:text-[var(--text-primary)]"
             >
-              <span>Suivant</span>
+              <span>{t('common.next')}</span>
               <ChevronRight className="w-3 h-3" />
             </button>
           </div>
@@ -160,6 +162,7 @@ export const NodeInspectorPanel: React.FC<NodeInspectorPanelProps> = ({
   structureRoot,
   onClose,
 }) => {
+  const { t } = useI18n();
   const [paramFilter, setParamFilter] = useState('');
 
   useEffect(() => {
@@ -171,12 +174,9 @@ export const NodeInspectorPanel: React.FC<NodeInspectorPanelProps> = ({
       <aside className="w-full lg:w-[390px] shrink-0 studio-panel border-y-0 border-r-0 p-5 flex flex-col items-center justify-center text-center text-[var(--text-muted)]">
         <GitBranch className="w-8 h-8 mb-2 opacity-40" />
         <p className="text-sm font-medium text-[var(--text-secondary)]">
-          Sélectionnez un nœud du graphe
+          {t('inspector.selectNode')}
         </p>
-        <p className="text-xs mt-1 max-w-[260px]">
-          Cliquez sur une étape du pipeline pour inspecter ses hyperparamètres et ses attributs
-          appris.
-        </p>
+        <p className="text-xs mt-1 max-w-[260px]">{t('inspector.selectNodeHint')}</p>
       </aside>
     );
   }
@@ -238,7 +238,7 @@ export const NodeInspectorPanel: React.FC<NodeInspectorPanelProps> = ({
             type="button"
             onClick={onClose}
             className="p-1.5 rounded-lg hover:bg-[var(--bg-elevated)] text-[var(--text-muted)] hover:text-[var(--text-primary)]"
-            aria-label="Fermer l'inspecteur"
+            aria-label={t('inspector.close')}
           >
             <X className="w-4 h-4" />
           </button>
@@ -254,9 +254,10 @@ export const NodeInspectorPanel: React.FC<NodeInspectorPanelProps> = ({
         <div className="flex items-center gap-2 text-xs text-[var(--text-muted)]">
           <GitBranch className="w-3.5 h-3.5 text-sky-400 shrink-0" />
           <span>
-            dépend de <strong className="text-[var(--text-primary)]">{node.dependsOn.length}</strong>{' '}
-            nœud(s) • utilisé par{' '}
-            <strong className="text-[var(--text-primary)]">{node.dependedBy.length}</strong> nœud(s)
+            {t('inspector.depends', {
+              up: node.dependsOn.length,
+              down: node.dependedBy.length,
+            })}
           </span>
         </div>
       </div>
@@ -268,7 +269,7 @@ export const NodeInspectorPanel: React.FC<NodeInspectorPanelProps> = ({
           <div className="flex items-center justify-between gap-2">
             <div className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-[var(--text-muted)]">
               <SlidersHorizontal className="w-3.5 h-3.5 text-indigo-400" />
-              <span>Hyperparamètres ({rawParams.length})</span>
+              <span>{t('inspector.hyperparams', { count: rawParams.length })}</span>
             </div>
           </div>
 
@@ -279,14 +280,14 @@ export const NodeInspectorPanel: React.FC<NodeInspectorPanelProps> = ({
                 type="text"
                 value={paramFilter}
                 onChange={(e) => setParamFilter(e.target.value)}
-                placeholder="Filtrer les hyperparamètres…"
+                placeholder={t('inspector.filterParams')}
                 className="w-full pl-8 pr-3 py-1.5 rounded-lg studio-elevated text-xs focus:outline-none focus:ring-1 focus:ring-sky-500"
               />
             </div>
           )}
 
           {filteredParams.length === 0 ? (
-            <p className="text-xs text-[var(--text-muted)] italic">Aucun hyperparamètre.</p>
+            <p className="text-xs text-[var(--text-muted)] italic">{t('inspector.noParams')}</p>
           ) : (
             <div className="rounded-lg border border-[var(--border-subtle)] divide-y divide-[var(--border-subtle)] overflow-hidden">
               {filteredParams.map((p, i) => {
@@ -314,12 +315,12 @@ export const NodeInspectorPanel: React.FC<NodeInspectorPanelProps> = ({
         <section className="space-y-3">
           <div className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-[var(--text-muted)]">
             <Tag className="w-3.5 h-3.5 text-amber-400" />
-            <span>Attributs appris ({fittedEntries.length})</span>
+            <span>{t('inspector.fitted', { count: fittedEntries.length })}</span>
           </div>
 
           {fittedEntries.length === 0 ? (
             <p className="text-xs text-[var(--text-muted)] italic">
-              Aucun attribut appris exposé pour ce nœud.
+              {t('inspector.noFitted')}
             </p>
           ) : (
             <div className="space-y-3">

@@ -8,6 +8,8 @@ export type InputLayout = 'matrix' | 'columns' | 'text';
 export interface EngineErrorPayload {
   code: string;
   message: string;
+  /** When set, the UI displays this translation key instead of `message`. */
+  messageKey?: import('../i18n/en').MessageKey;
   trace?: string;
   missingPackage?: string | null;
 }
@@ -290,6 +292,9 @@ export type PyodideBootStage =
 
 export interface PyodideProgress {
   stage: PyodideBootStage;
-  message: string;
+  /** i18n key used to render the progress message in the active locale. */
+  key: import('../i18n/en').MessageKey;
+  /** Optional technical detail interpolated into the message key. */
+  detail?: string;
   percent: number;
 }

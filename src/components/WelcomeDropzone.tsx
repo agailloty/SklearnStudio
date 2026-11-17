@@ -9,6 +9,7 @@ import {
   UploadCloud,
   X,
 } from 'lucide-react';
+import { useI18n, type MessageKey } from '../i18n';
 import type { DemoModelKind, PyodideProgress } from '../types/model';
 
 interface WelcomeDropzoneProps {
@@ -27,7 +28,8 @@ const ACCEPTED_EXTENSIONS = ['.skops', '.joblib', '.pkl', '.pickle', '.gz', '.bz
 const DEMO_CARDS: Array<{
   kind: DemoModelKind;
   title: string;
-  subtitle: string;
+  subtitleKey?: MessageKey;
+  subtitle?: string;
   layoutBadge: string;
   icon: React.ReactNode;
   accent: string;
@@ -35,7 +37,7 @@ const DEMO_CARDS: Array<{
   {
     kind: 'iris_pipeline',
     title: 'Iris Classifier Pipeline',
-    subtitle: 'StandardScaler → LogisticRegression (4 variables numériques nommées)',
+    subtitleKey: 'welcome.irisSubtitle',
     layoutBadge: 'matrix',
     icon: <GitBranch className="w-4 h-4 text-emerald-400" />,
     accent: 'hover:border-emerald-500/40',
@@ -51,7 +53,7 @@ const DEMO_CARDS: Array<{
   {
     kind: 'text_tfidf_classifier',
     title: 'Sentiment Text Classifier',
-    subtitle: 'TfidfVectorizer → MultinomialNB (classification de texte brut)',
+    subtitleKey: 'welcome.textSubtitle',
     layoutBadge: 'text',
     icon: <Type className="w-4 h-4 text-sky-400" />,
     accent: 'hover:border-sky-500/40',
@@ -68,6 +70,7 @@ export const WelcomeDropzone: React.FC<WelcomeDropzoneProps> = ({
   onLoadDemo,
   onCloseModal,
 }) => {
+  const { t } = useI18n();
   const inputRef = useRef<HTMLInputElement>(null);
   const [isDragging, setIsDragging] = useState(false);
   const [pendingFile, setPendingFile] = useState<File | null>(null);
@@ -99,14 +102,13 @@ export const WelcomeDropzone: React.FC<WelcomeDropzoneProps> = ({
         <div className="space-y-1.5">
           <div className="inline-flex items-center gap-2 px-2.5 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/25 text-emerald-400 text-xs font-medium">
             <Lock className="w-3.5 h-3.5" />
-            <span>Traitement local dans le navigateur — aucun fichier envoyé sur serveur</span>
+            <span>{t('welcome.localBadge')}</span>
           </div>
           <h1 className="text-2xl font-bold tracking-tight">
-            Inspecteur & Playground <span className="text-sky-400">scikit-learn</span>
+            {t('welcome.title')} <span className="text-sky-400">scikit-learn</span>
           </h1>
           <p className="text-sm text-[var(--text-secondary)]">
-            Explorez le graphe DAG, les hyperparamètres, les attributs appris et testez l’inférence
-            en ligne directement dans votre navigateur.
+            {t('welcome.subtitle')}
           </p>
         </div>
 
@@ -115,7 +117,7 @@ export const WelcomeDropzone: React.FC<WelcomeDropzoneProps> = ({
             type="button"
             onClick={onCloseModal}
             className="p-2 rounded-lg studio-elevated text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
-            aria-label="Fermer"
+            aria-label={t('common.close')}
           >
             <X className="w-4 h-4" />
           </button>
@@ -127,7 +129,9 @@ export const WelcomeDropzone: React.FC<WelcomeDropzoneProps> = ({
         <div className="studio-panel rounded-xl p-3.5 space-y-2">
           <div className="flex items-center justify-between text-xs">
             <span className="text-[var(--text-secondary)] font-medium">
-              {pyodideProgress.message}
+              {pyodideProgress.detail
+                ? t(pyodideProgress.key, { message: pyodideProgress.detail })
+                : t(pyodideProgress.key)}
             </span>
             <span className="font-mono text-sky-400">{pyodideProgress.percent}%</span>
           </div>
@@ -147,20 +151,10 @@ export const WelcomeDropzone: React.FC<WelcomeDropzoneProps> = ({
             <ShieldAlert className="w-5 h-5 text-amber-400 shrink-0 mt-0.5" />
             <div className="space-y-1 text-xs">
               <div className="font-semibold text-sm text-amber-300">
-                Format de recours Pickle / Joblib — Sécurité & Compatibilité
+                {t('welcome.securityTitle')}
               </div>
               <p className="text-[var(--text-secondary)] leading-relaxed">
-                Les fichiers <code className="font-mono">.joblib</code> et{' '}
-                <code className="font-mono">.pkl</code> peuvent exécuter du code Python à
-                l’ouverture et souffrir d’<strong>incompatibilités de version</strong> entre
-                l’environnement d’entraînement et Pyodide (ex. attributs supprimés ou structures
-                Cython). Privilégiez le format <code className="font-mono text-emerald-400">.skops</code>{' '}
-                dès que possible. Tout s’exécute localement dans le sandbox WebAssembly sans envoi
-                sur Internet. Charger{' '}
-                <span className="font-mono font-semibold text-[var(--text-primary)]">
-                  {pendingFile.name}
-                </span>{' '}
-                ?
+                {t('welcome.securityBody', { file: pendingFile.name })}
               </p>
             </div>
           </div>
@@ -170,21 +164,21 @@ export const WelcomeDropzone: React.FC<WelcomeDropzoneProps> = ({
               onClick={() => setPendingFile(null)}
               className="px-3 py-1.5 rounded-lg studio-elevated text-xs font-medium hover:opacity-90"
             >
-              Annuler
+              {t('welcome.cancel')}
             </button>
             <button
               type="button"
               onClick={() => confirmPendingFile(false)}
               className="px-3 py-1.5 rounded-lg bg-amber-500/20 border border-amber-500/40 text-amber-300 text-xs font-medium hover:bg-amber-500/30"
             >
-              Charger ce fichier uniquement
+              {t('welcome.loadThisFile')}
             </button>
             <button
               type="button"
               onClick={() => confirmPendingFile(true)}
               className="px-3 py-1.5 rounded-lg bg-amber-500 text-slate-950 text-xs font-semibold hover:bg-amber-400"
             >
-              Faire confiance pour cette session
+              {t('welcome.trustSession')}
             </button>
           </div>
         </div>
@@ -226,21 +220,19 @@ export const WelcomeDropzone: React.FC<WelcomeDropzoneProps> = ({
           <div className="space-y-1.5">
             <p className="text-sm font-semibold">
               {isLoading
-                ? 'Chargement et introspection du modèle en cours…'
-                : 'Glissez-déposez un modèle scikit-learn ici, ou cliquez pour parcourir'}
+                ? t('welcome.loadingModel')
+                : t('welcome.dropzone')}
             </p>
             <div className="flex flex-wrap items-center justify-center gap-2 text-xs">
               <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 font-mono text-[11px] font-semibold">
-                Recommandé : .skops
+                {t('welcome.recommended')}
               </span>
               <span className="text-[var(--text-muted)] font-mono text-[11px]">
-                Recours : .joblib, .pkl, .pickle, .gz, .bz2, .xz, .lzma
+                {t('welcome.fallback')}
               </span>
             </div>
             <p className="text-[11px] text-amber-400/90 max-w-xl mx-auto">
-              Note : les fichiers pickle/joblib peuvent rencontrer des erreurs de compatibilité
-              selon la version de scikit-learn utilisée à l’entraînement (une normalisation
-              automatique est tentée au chargement).
+              {t('welcome.note')}
             </p>
           </div>
         </div>
@@ -250,7 +242,7 @@ export const WelcomeDropzone: React.FC<WelcomeDropzoneProps> = ({
       <div className="space-y-3">
         <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-[var(--text-muted)]">
           <FileCode2 className="w-3.5 h-3.5" />
-          <span>Modèles de démonstration instantanés</span>
+          <span>{t('welcome.demoSection')}</span>
         </div>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
           {DEMO_CARDS.map((card) => (
@@ -269,7 +261,7 @@ export const WelcomeDropzone: React.FC<WelcomeDropzoneProps> = ({
               </div>
               <div className="font-semibold text-sm mb-1">{card.title}</div>
               <p className="text-xs text-[var(--text-secondary)] leading-relaxed">
-                {card.subtitle}
+                {card.subtitleKey ? t(card.subtitleKey) : card.subtitle}
               </p>
             </button>
           ))}

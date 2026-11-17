@@ -4,6 +4,7 @@ import {
   AlertTriangle,
   Cpu,
   Database,
+  Languages,
   Moon,
   Network,
   Play,
@@ -11,6 +12,7 @@ import {
   Sun,
   X,
 } from 'lucide-react';
+import { useI18n } from '../i18n';
 import type { InspectedModel, PyodideProgress } from '../types/model';
 
 export type StudioView = 'inspector' | 'inference' | 'metadata';
@@ -40,9 +42,13 @@ export const TopBar: React.FC<TopBarProps> = ({
   onToggleTheme,
   onOpenModal,
 }) => {
+  const { locale, setLocale, t } = useI18n();
   const activeModel = models.find((m) => m.id === activeModelId) ?? null;
   const isReady = pyodideProgress.stage === 'ready';
   const isError = pyodideProgress.stage === 'error';
+  const progressTitle = pyodideProgress.detail
+    ? t(pyodideProgress.key, { message: pyodideProgress.detail })
+    : t(pyodideProgress.key);
 
   const hasVersionMismatch = Boolean(
     activeModel?.info.trainedWithSklearn &&
@@ -64,7 +70,7 @@ export const TopBar: React.FC<TopBarProps> = ({
         {/* Pyodide status pill */}
         <div
           className="hidden sm:flex items-center gap-2 px-2.5 py-1 rounded-full text-[11px] font-medium studio-elevated shrink-0"
-          title={pyodideProgress.message}
+          title={progressTitle}
         >
           <span
             className={`w-2 h-2 rounded-full ${
@@ -76,7 +82,7 @@ export const TopBar: React.FC<TopBarProps> = ({
             }`}
           />
           <span className="text-[var(--text-secondary)]">
-            {isReady ? 'Environnement prêt' : pyodideProgress.message}
+            {isReady ? t('progress.ready') : progressTitle}
           </span>
           {!isReady && !isError && pyodideProgress.percent > 0 && (
             <span className="font-mono text-sky-400">{pyodideProgress.percent}%</span>
@@ -107,8 +113,8 @@ export const TopBar: React.FC<TopBarProps> = ({
                       onCloseModel(m.id);
                     }}
                     className="opacity-60 hover:opacity-100 rounded p-0.5 hover:bg-slate-500/20"
-                    title="Fermer et libérer la mémoire"
-                    aria-label={`Fermer ${m.filename}`}
+                    title={t('topbar.closeTab')}
+                    aria-label={t('topbar.closeModel', { name: m.filename })}
                   >
                     <X className="w-3 h-3" />
                   </button>
@@ -132,7 +138,7 @@ export const TopBar: React.FC<TopBarProps> = ({
             }`}
           >
             <Network className="w-3.5 h-3.5" />
-            <span className="hidden md:inline">Inspecteur</span>
+            <span className="hidden md:inline">{t('topbar.inspector')}</span>
           </button>
           <button
             type="button"
@@ -144,7 +150,7 @@ export const TopBar: React.FC<TopBarProps> = ({
             }`}
           >
             <Play className="w-3.5 h-3.5" />
-            <span className="hidden md:inline">Inférence en ligne</span>
+            <span className="hidden md:inline">{t('topbar.inference')}</span>
           </button>
           <button
             type="button"
@@ -156,7 +162,7 @@ export const TopBar: React.FC<TopBarProps> = ({
             }`}
           >
             <Database className="w-3.5 h-3.5" />
-            <span className="hidden md:inline">Métadonnées & Poids</span>
+            <span className="hidden md:inline">{t('topbar.metadata')}</span>
           </button>
         </nav>
       )}
@@ -166,11 +172,14 @@ export const TopBar: React.FC<TopBarProps> = ({
         {hasVersionMismatch && activeModel && (
           <div
             className="hidden xl:flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-amber-500/15 border border-amber-500/30 text-amber-400 text-[11px] font-medium"
-            title={`Modèle entraîné avec scikit-learn ${activeModel.info.trainedWithSklearn}, inspecté avec ${activeModel.info.runtimeSklearn}`}
+            title={t('topbar.versionMismatchTitle', {
+              trained: activeModel.info.trainedWithSklearn ?? '',
+              runtime: activeModel.info.runtimeSklearn ?? '',
+            })}
           >
             <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
             <span>
-              Entraîné v{activeModel.info.trainedWithSklearn} • Runtime v
+              {t('topbar.trained')} v{activeModel.info.trainedWithSklearn} • Runtime v
               {activeModel.info.runtimeSklearn}
             </span>
           </div>
@@ -182,7 +191,7 @@ export const TopBar: React.FC<TopBarProps> = ({
             title={activeModel.info.warnings.join('\n')}
           >
             <Activity className="w-3.5 h-3.5" />
-            <span>{activeModel.info.warnings.length} avert.</span>
+            <span>{t('topbar.warningsShort', { count: activeModel.info.warnings.length })}</span>
           </div>
         )}
 
@@ -190,10 +199,21 @@ export const TopBar: React.FC<TopBarProps> = ({
           type="button"
           onClick={onToggleTheme}
           className="p-1.5 rounded-lg studio-elevated text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors"
-          title={theme === 'dark' ? 'Passer au thème clair' : 'Passer au thème sombre'}
-          aria-label="Basculer le thème"
+          title={theme === 'dark' ? t('topbar.themeLight') : t('topbar.themeDark')}
+          aria-label={t('topbar.toggleTheme')}
         >
           {theme === 'dark' ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setLocale(locale === 'fr' ? 'en' : 'fr')}
+          className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg studio-elevated text-[var(--text-secondary)] hover:text-[var(--text-primary)] text-xs font-semibold transition-colors"
+          title={t('topbar.language')}
+          aria-label={t('topbar.language')}
+        >
+          <Languages className="w-3.5 h-3.5" />
+          <span className="font-mono uppercase">{locale}</span>
         </button>
 
         <button
@@ -202,7 +222,7 @@ export const TopBar: React.FC<TopBarProps> = ({
           className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-sky-500 hover:bg-sky-400 text-slate-950 font-semibold text-xs transition-colors shadow-sm"
         >
           <Plus className="w-3.5 h-3.5" />
-          <span>Ouvrir un modèle</span>
+          <span>{t('topbar.openModel')}</span>
         </button>
       </div>
     </header>

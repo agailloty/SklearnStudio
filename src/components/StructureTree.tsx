@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { ChevronDown, ChevronRight, ExternalLink, Layers } from 'lucide-react';
 import type { StructureNode } from '../types/model';
 import { formatValuePreview, getCategoryStyle } from '../utils/format';
+import { useI18n } from '../i18n';
 
 interface StructureTreeProps {
   root: StructureNode;
@@ -22,6 +23,7 @@ const TreeItem: React.FC<TreeItemProps> = ({
   selectedNodeId,
   onSelectGraphNode,
 }) => {
+  const { t } = useI18n();
   const [expanded, setExpanded] = useState(depth < 2);
   const hasChildren = node.children.length > 0;
   const isSelected = Boolean(node.nodeId && node.nodeId === selectedNodeId);
@@ -77,7 +79,7 @@ const TreeItem: React.FC<TreeItemProps> = ({
         <div className="flex items-center gap-2 shrink-0">
           {node.fitted.length > 0 && (
             <span className="text-[10px] font-mono px-1.5 py-0.5 rounded studio-elevated text-[var(--text-muted)]">
-              {node.fitted.length} attr.
+              {t('tree.fittedCount', { count: node.fitted.length })}
             </span>
           )}
           {node.nodeId && (
@@ -88,10 +90,10 @@ const TreeItem: React.FC<TreeItemProps> = ({
                 onSelectGraphNode(node.nodeId!, true);
               }}
               className="flex items-center gap-1 px-2 py-1 rounded-md bg-sky-500/15 hover:bg-sky-500/25 text-sky-400 text-[11px] font-medium"
-              title="Voir ce composant dans le graphe DAG"
+              title={t('tree.viewInGraphTitle')}
             >
               <ExternalLink className="w-3 h-3" />
-              <span>Voir dans le graphe</span>
+              <span>{t('tree.viewInGraph')}</span>
             </button>
           )}
         </div>
@@ -138,12 +140,13 @@ export const StructureTree: React.FC<StructureTreeProps> = ({
   selectedNodeId,
   onSelectGraphNode,
 }) => {
+  const { t } = useI18n();
   return (
     <div className="w-full h-full overflow-y-auto p-4">
       <div className="max-w-4xl mx-auto studio-panel rounded-xl p-4 space-y-3">
         <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-[var(--text-muted)] pb-2 border-b border-[var(--border-subtle)]">
           <Layers className="w-4 h-4 text-indigo-400" />
-          <span>Arbre hiérarchique du modèle</span>
+          <span>{t('tree.title')}</span>
         </div>
         <TreeItem
           node={root}

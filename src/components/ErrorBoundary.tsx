@@ -1,5 +1,6 @@
 import React from 'react';
 import { AlertTriangle, RotateCcw } from 'lucide-react';
+import { I18nContext, type I18nContextValue } from '../i18n';
 
 interface ErrorBoundaryProps {
   children: React.ReactNode;
@@ -12,6 +13,8 @@ interface ErrorBoundaryState {
 }
 
 export class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundaryState> {
+  static contextType = I18nContext;
+  declare context: React.ContextType<typeof I18nContext>;
   public state: ErrorBoundaryState = {
     hasError: false,
     message: '',
@@ -20,7 +23,7 @@ export class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoun
   public static getDerivedStateFromError(error: Error): ErrorBoundaryState {
     return {
       hasError: true,
-      message: error.message || 'Erreur inattendue lors du rendu.',
+      message: error.message || '',
     };
   }
 
@@ -31,6 +34,7 @@ export class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoun
 
   public render() {
     if (this.state.hasError) {
+      const t = (this.context?.t ?? ((key) => key)) as I18nContextValue['t'];
       return (
         <div className="flex-1 flex items-center justify-center p-6">
           <div className="max-w-md w-full studio-panel rounded-xl p-6 space-y-4 text-center">
@@ -38,9 +42,9 @@ export class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoun
               <AlertTriangle className="w-5 h-5" />
             </div>
             <div className="space-y-1">
-              <h2 className="text-sm font-semibold">Une erreur d'affichage est survenue</h2>
+              <h2 className="text-sm font-semibold">{t('error.title')}</h2>
               <p className="text-xs text-[var(--text-secondary)] font-mono break-words">
-                {this.state.message}
+                {this.state.message || t('error.fallback')}
               </p>
             </div>
             <button
@@ -49,7 +53,7 @@ export class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoun
               className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-sky-500 hover:bg-sky-400 text-slate-950 font-semibold text-xs"
             >
               <RotateCcw className="w-3.5 h-3.5" />
-              <span>Réinitialiser la vue</span>
+              <span>{t('error.reset')}</span>
             </button>
           </div>
         </div>
